@@ -39,4 +39,5 @@ library:
         src
     dependencies:
         - cassava
+        - scientific
         - text
