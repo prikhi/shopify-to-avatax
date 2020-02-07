@@ -38,7 +38,9 @@ library:
     source-dirs:
         src
     dependencies:
+        - bytestring
         - cassava
+        - ilist
         - scientific
         - text
         - vector

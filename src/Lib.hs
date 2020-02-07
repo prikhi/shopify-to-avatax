@@ -1,13 +1,14 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings, DeriveGeneric #-}
 module Lib where
 
 
 import           Data.Char                      ( isDigit )
 import           Data.Csv
+import           Data.List.Index
 import           Data.List.NonEmpty
 import           Data.Maybe
 import           Data.Scientific                ( Scientific )
-import           Data.Text                     as T
+import           GHC.Generics                   ( Generic )
 
 import qualified Data.Vector                   as V
 import qualified Data.Text                     as T
@@ -96,3 +97,57 @@ parseShopifyOrders contents = case decodeByName contents of
                                }
                 , first : rest
                 )
+
+
+
+
+-- AVATAX
+
+data AvaTaxLine =
+    AvaTaxLine
+        { processCode :: T.Text
+        , docCode :: T.Text
+        , docType :: T.Text
+        , docDate :: T.Text
+        , customerCode :: T.Text
+        , lineNo :: T.Text
+        , qty :: Integer
+        , total :: Scientific
+        , itemCode :: T.Text
+        , description :: T.Text
+        , origRegion :: T.Text
+        , origPostCode :: T.Text
+        , destAddress :: T.Text
+        , destRegion :: T.Text
+        , destPostCode :: T.Text
+        , destCountry :: T.Text
+        } deriving (Show, Read, Eq, Generic)
+
+instance ToNamedRecord AvaTaxLine
+instance DefaultOrdered AvaTaxLine
+
+toAvalaraLine :: (ShopifyOrder, [ShopifyLine]) -> [AvaTaxLine]
+toAvalaraLine (ShopifyOrder {..}, sLines) = imap convert sLines
+  where
+    convert :: Int -> ShopifyLine -> AvaTaxLine
+    convert index0 ShopifyLine {..} = AvaTaxLine
+        { processCode  = "3"
+        , docCode      = soId
+        , docType      = "SalesInvoice"
+        , docDate      = slDate
+        , customerCode = slCustomerId
+        , lineNo       = T.pack . show $ index0 + 1
+        , qty          = slQuantity
+        , total        = slLineTotal
+        , itemCode     = slSku
+        , description  = slName
+        , origRegion   = "VA"
+        , origPostCode = "23117"
+        , destAddress  = soShipStreet
+        , destRegion   = soShipRegion
+        , destPostCode = soShipZip
+        , destCountry  = soShipCountry
+        }
+
+encodeAvaTaxLines :: [AvaTaxLine] -> LBS.ByteString
+encodeAvaTaxLines = encodeDefaultOrderedByName
