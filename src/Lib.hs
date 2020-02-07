@@ -34,6 +34,8 @@ data ShopifyLine =
         , slName :: T.Text
           -- Optional
         , slQuantity :: Integer
+          -- Store shipping to pop out into another line
+        , slShippingCost :: Scientific
         } deriving (Show, Read, Eq)
 
 
@@ -45,12 +47,13 @@ instance FromNamedRecord ShopifyLine where
         slQuantity   <- r .: "Lineitem quantity"
         linePrice    <- r .: "Lineitem price"
         let slLineTotal = fromInteger slQuantity * linePrice
-        slShipRegion <- optional $ r .: "Shipping Province"
-        slShipZip    <- fmap (T.filter isDigit) . optional $ r .: "Shipping Zip"
-        slStreet     <- optional $ r .: "Shipping Address1"
-        slCountry    <- optional $ r .: "Shipping Country"
-        slSku        <- r .: "Lineitem sku"
-        slName       <- r .: "Lineitem name"
+        slShipRegion   <- optional $ r .: "Shipping Province"
+        slShipZip <- fmap (T.filter isDigit) . optional $ r .: "Shipping Zip"
+        slStreet       <- optional $ r .: "Shipping Address1"
+        slCountry      <- optional $ r .: "Shipping Country"
+        slSku          <- r .: "Lineitem sku"
+        slName         <- r .: "Lineitem name"
+        slShippingCost <- fromMaybe (-9001) <$> r .: "Shipping"
         return ShopifyLine { .. }
       where
         optional         = fmap $ fromMaybe ""
@@ -67,6 +70,10 @@ data ShopifyOrder =
         , soShipZip :: T.Text
         , soShipStreet :: T.Text
         , soShipCountry :: T.Text
+        -- For shipping line
+        , soDate :: T.Text
+        , soCustomerId :: T.Text
+        , soShippingCost :: Scientific
         } deriving (Show, Read, Eq)
 
 
@@ -85,15 +92,20 @@ parseShopifyOrders contents = case decodeByName contents of
     processLines (first :| rest) =
         if any (\f -> f first == "")
                [slId, slShipRegion, slShipZip, slStreet, slCountry]
-            then
-                Left
-                    "Got blank id, region, zip, street, or country in first line of order."
-            else Right
-                ( ShopifyOrder { soId          = slId first
-                               , soShipRegion  = slShipRegion first
-                               , soShipZip     = slShipZip first
-                               , soShipStreet  = slStreet first
-                               , soShipCountry = slCountry first
+            || (slShippingCost first == (-9001))
+        then
+            Left
+                "Got blank id, region, zip, street, country, shipping cost in first line of order."
+        else
+            Right
+                ( ShopifyOrder { soId           = slId first
+                               , soShipRegion   = slShipRegion first
+                               , soShipZip      = slShipZip first
+                               , soShipStreet   = slStreet first
+                               , soShipCountry  = slCountry first
+                               , soDate         = slDate first
+                               , soCustomerId   = slCustomerId first
+                               , soShippingCost = slShippingCost first
                                }
                 , first : rest
                 )
@@ -127,8 +139,27 @@ instance ToNamedRecord AvaTaxLine
 instance DefaultOrdered AvaTaxLine
 
 toAvalaraLine :: (ShopifyOrder, [ShopifyLine]) -> [AvaTaxLine]
-toAvalaraLine (ShopifyOrder {..}, sLines) = imap convert sLines
+toAvalaraLine (ShopifyOrder {..}, sLines) = shippingLine : imap convert sLines
   where
+    shippingLine :: AvaTaxLine
+    shippingLine = AvaTaxLine { processCode  = "3"
+                              , docCode      = soId
+                              , docType      = "SalesInvoice"
+                              , docDate      = soDate
+                              , customerCode = soCustomerId
+                              , lineNo       = "1"
+                              , qty          = 1
+                              , total        = soShippingCost
+                              , itemCode     = "SHIPPING"
+                              , description  = "Wholesale Shipping"
+                              , origRegion   = "VA"
+                              , origPostCode = "23117"
+                              , destAddress  = soShipStreet
+                              , destRegion   = soShipRegion
+                              , destPostCode = soShipZip
+                              , destCountry  = soShipCountry
+                              }
+
     convert :: Int -> ShopifyLine -> AvaTaxLine
     convert index0 ShopifyLine {..} = AvaTaxLine
         { processCode  = "3"
@@ -136,7 +167,7 @@ toAvalaraLine (ShopifyOrder {..}, sLines) = imap convert sLines
         , docType      = "SalesInvoice"
         , docDate      = slDate
         , customerCode = slCustomerId
-        , lineNo       = T.pack . show $ index0 + 1
+        , lineNo       = T.pack . show $ index0 + 2
         , qty          = slQuantity
         , total        = slLineTotal
         , itemCode     = slSku
