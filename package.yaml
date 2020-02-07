@@ -1,0 +1,20 @@
+name:                shopify-to-avatax
+version:             0.1.0.0
+#synopsis:
+#description:
+homepage:            https://github.com/prikhi/shopify-to-avatax#readme
+license:             BSD3
+author:              Pavan Rikhi
+maintainer:          pavan.rikhi@gmail.com
+copyright:           2020 Pavan Rikhi
+category:            Web
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+
+executables:
+  shopify-to-avatax:
+    source-dirs:      src
+    main:             Main.hs
