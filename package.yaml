@@ -44,3 +44,13 @@ library:
         - scientific
         - text
         - vector
+
+executable:
+    main:
+        Main.hs
+    source-dirs:
+        app
+    dependencies:
+        - shopify-to-avatax
+        - bytestring
+        - cassava
