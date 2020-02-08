@@ -36,14 +36,16 @@ data ShopifyLine =
         , slQuantity :: Integer
           -- Store shipping to pop out into another line
         , slShippingCost :: Scientific
+          -- Indicates this line should be filtered out
+        , slIgnore :: Bool
         } deriving (Show, Read, Eq)
 
 
 instance FromNamedRecord ShopifyLine where
     parseNamedRecord r = do
         slDate       <- T.takeWhile (/= ' ') <$> r .: "Created at"
-        slId         <- optionalPrefixed $ r .: "Id"
-        slCustomerId <- prefixed $ r .: "Name"
+        slId         <- optional $ r .: "Id"
+        slCustomerId <- r .: "Name"
         slQuantity   <- r .: "Lineitem quantity"
         linePrice    <- r .: "Lineitem price"
         let slLineTotal = fromInteger slQuantity * linePrice
@@ -51,14 +53,20 @@ instance FromNamedRecord ShopifyLine where
         slShipZip <- fmap (T.filter isDigit) . optional $ r .: "Shipping Zip"
         slStreet       <- optional $ r .: "Shipping Address1"
         slCountry      <- optional $ r .: "Shipping Country"
-        slSku          <- r .: "Lineitem sku"
         slName         <- r .: "Lineitem name"
+        slSku          <- cleanSku slName <$> r .: "Lineitem sku"
         slShippingCost <- fromMaybe (-9001) <$> r .: "Shipping"
+        let slIgnore = T.isPrefixOf "Payment for" slName
         return ShopifyLine { .. }
       where
-        optional         = fmap $ fromMaybe ""
-        optionalPrefixed = fmap $ maybe "" ("wholesale-" <>)
-        prefixed         = fmap ("wholesale-" <>)
+        optional = fmap $ fromMaybe ""
+        cleanSku name sku
+            | name == "Garden Guide and Catalog Wire Hanger"
+            = "GuideCatalogHanger"
+            | T.length sku < 5
+            = "0" <> sku
+            | otherwise
+            = sku
 
 
 -- | This type contains the data that shopify only exports to the first
@@ -84,6 +92,7 @@ parseShopifyOrders contents = case decodeByName contents of
     Right (_, sLines) ->
         mapM processLines
             $ groupWith (\l -> (slCustomerId l, slDate l))
+            $ Prelude.filter (not . slIgnore)
             $ V.toList sLines
 
   where
@@ -119,7 +128,8 @@ data AvaTaxLine =
     AvaTaxLine
         { processCode :: T.Text
         , docCode :: T.Text
-        , docType :: T.Text
+        , docType :: Integer
+        , companyCode :: T.Text
         , docDate :: T.Text
         , customerCode :: T.Text
         , lineNo :: T.Text
@@ -133,6 +143,7 @@ data AvaTaxLine =
         , destRegion :: T.Text
         , destPostCode :: T.Text
         , destCountry :: T.Text
+        , isSellerImporterOfRecord :: T.Text
         } deriving (Show, Read, Eq, Generic)
 
 instance ToNamedRecord AvaTaxLine
@@ -142,42 +153,46 @@ toAvalaraLine :: (ShopifyOrder, [ShopifyLine]) -> [AvaTaxLine]
 toAvalaraLine (ShopifyOrder {..}, sLines) = shippingLine : imap convert sLines
   where
     shippingLine :: AvaTaxLine
-    shippingLine = AvaTaxLine { processCode  = "3"
-                              , docCode      = soId
-                              , docType      = "SalesInvoice"
-                              , docDate      = soDate
-                              , customerCode = soCustomerId
-                              , lineNo       = "1"
-                              , qty          = 1
-                              , total        = soShippingCost
-                              , itemCode     = "SHIPPING"
-                              , description  = "Wholesale Shipping"
-                              , origRegion   = "VA"
-                              , origPostCode = "23117"
-                              , destAddress  = soShipStreet
-                              , destRegion   = soShipRegion
-                              , destPostCode = soShipZip
-                              , destCountry  = soShipCountry
+    shippingLine = AvaTaxLine { processCode              = "3"
+                              , docCode                  = soId
+                              , docType                  = 1
+                              , companyCode              = "SEEDRACKS"
+                              , docDate                  = soDate
+                              , customerCode             = soCustomerId
+                              , lineNo                   = "1"
+                              , qty                      = 1
+                              , total                    = soShippingCost
+                              , itemCode                 = "SHIPPING"
+                              , description              = "Wholesale Shipping"
+                              , origRegion               = "VA"
+                              , origPostCode             = "23117"
+                              , destAddress              = soShipStreet
+                              , destRegion               = soShipRegion
+                              , destPostCode             = soShipZip
+                              , destCountry              = soShipCountry
+                              , isSellerImporterOfRecord = "TRUE"
                               }
 
     convert :: Int -> ShopifyLine -> AvaTaxLine
     convert index0 ShopifyLine {..} = AvaTaxLine
-        { processCode  = "3"
-        , docCode      = soId
-        , docType      = "SalesInvoice"
-        , docDate      = slDate
-        , customerCode = slCustomerId
-        , lineNo       = T.pack . show $ index0 + 2
-        , qty          = slQuantity
-        , total        = slLineTotal
-        , itemCode     = slSku
-        , description  = slName
-        , origRegion   = "VA"
-        , origPostCode = "23117"
-        , destAddress  = soShipStreet
-        , destRegion   = soShipRegion
-        , destPostCode = soShipZip
-        , destCountry  = soShipCountry
+        { processCode              = "3"
+        , docCode                  = soId
+        , docType                  = 1
+        , companyCode              = "SEEDRACKS"
+        , docDate                  = slDate
+        , customerCode             = slCustomerId
+        , lineNo                   = T.pack . show $ index0 + 2
+        , qty                      = slQuantity
+        , total                    = slLineTotal
+        , itemCode                 = slSku
+        , description              = slName
+        , origRegion               = "VA"
+        , origPostCode             = "23117"
+        , destAddress              = soShipStreet
+        , destRegion               = soShipRegion
+        , destPostCode             = soShipZip
+        , destCountry              = soShipCountry
+        , isSellerImporterOfRecord = "TRUE"
         }
 
 encodeAvaTaxLines :: [AvaTaxLine] -> LBS.ByteString
