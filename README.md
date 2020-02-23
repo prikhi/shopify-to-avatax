@@ -1,4 +1,6 @@
-# Shopify -> Avalara AvaTax Converter
+# Shopify → Avalara AvaTax Converter
+
+[![Build Status](https://travis-ci.org/prikhi/shopify-to-avatax.svg?branch=master)](https://travis-ci.org/prikhi/shopify-to-avatax)
 
 A haskell program that converts a Shopify Order Export CSV into an XLSX for
 AvaTax Transaction Imports.
