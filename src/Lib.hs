@@ -45,7 +45,7 @@ instance FromNamedRecord ShopifyLine where
     parseNamedRecord r = do
         slDate       <- T.takeWhile (/= ' ') <$> r .: "Created at"
         slId         <- optional $ r .: "Id"
-        slCustomerId <- r .: "Name"
+        slCustomerId <- r .: "Email"
         slQuantity   <- r .: "Lineitem quantity"
         linePrice    <- r .: "Lineitem price"
         let slLineTotal = fromInteger slQuantity * linePrice
