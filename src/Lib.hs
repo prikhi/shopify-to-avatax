@@ -32,6 +32,8 @@ data ShopifyLine =
         , slCountry :: T.Text
         , slSku :: T.Text
         , slName :: T.Text
+          -- Required for Exemptions
+        , slCompany :: T.Text
           -- Optional
         , slQuantity :: Integer
           -- Store shipping to pop out into another line
@@ -54,6 +56,7 @@ instance FromNamedRecord ShopifyLine where
         slStreet       <- optional $ r .: "Shipping Address1"
         slCountry      <- optional $ r .: "Shipping Country"
         slName         <- r .: "Lineitem name"
+        slCompany      <- r .: "Shipping Company"
         slSku          <- cleanSku slName <$> r .: "Lineitem sku"
         slShippingCost <- fromMaybe (-9001) <$> r .: "Shipping"
         let slIgnore = T.isPrefixOf "Payment for" slName
@@ -74,6 +77,7 @@ instance FromNamedRecord ShopifyLine where
 data ShopifyOrder =
     ShopifyOrder
         { soId :: T.Text
+        , soCustomerName :: T.Text
         , soShipRegion :: T.Text
         , soShipZip :: T.Text
         , soShipStreet :: T.Text
@@ -108,6 +112,7 @@ parseShopifyOrders contents = case decodeByName contents of
         else
             Right
                 ( ShopifyOrder { soId           = slId first
+                               , soCustomerName = slCompany first
                                , soShipRegion   = slShipRegion first
                                , soShipZip      = slShipZip first
                                , soShipStreet   = slStreet first
@@ -132,6 +137,7 @@ data AvaTaxLine =
         , companyCode :: T.Text
         , docDate :: T.Text
         , customerCode :: T.Text
+        , customerName :: T.Text
         , lineNo :: T.Text
         , qty :: Integer
         , total :: Scientific
@@ -159,6 +165,7 @@ toAvalaraLine (ShopifyOrder {..}, sLines) = shippingLine : imap convert sLines
                               , companyCode              = "SEEDRACKS"
                               , docDate                  = soDate
                               , customerCode             = soCustomerId
+                              , customerName             = soCustomerName
                               , lineNo                   = "1"
                               , qty                      = 1
                               , total                    = soShippingCost
@@ -181,6 +188,7 @@ toAvalaraLine (ShopifyOrder {..}, sLines) = shippingLine : imap convert sLines
         , companyCode              = "SEEDRACKS"
         , docDate                  = slDate
         , customerCode             = slCustomerId
+        , customerName             = soCustomerName
         , lineNo                   = T.pack . show $ index0 + 2
         , qty                      = slQuantity
         , total                    = slLineTotal
