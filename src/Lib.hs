@@ -34,6 +34,7 @@ data ShopifyLine =
         , slName :: T.Text
           -- Required for Exemptions
         , slCompany :: T.Text
+        , slCity :: T.Text
           -- Optional
         , slQuantity :: Integer
           -- Store shipping to pop out into another line
@@ -57,6 +58,7 @@ instance FromNamedRecord ShopifyLine where
         slCountry      <- optional $ r .: "Shipping Country"
         slName         <- r .: "Lineitem name"
         slCompany      <- r .: "Shipping Company"
+        slCity         <- r .: "Shipping City"
         slSku          <- cleanSku slName <$> r .: "Lineitem sku"
         slShippingCost <- fromMaybe (-9001) <$> r .: "Shipping"
         let slIgnore = T.isPrefixOf "Payment for" slName
@@ -81,6 +83,7 @@ data ShopifyOrder =
         , soShipRegion :: T.Text
         , soShipZip :: T.Text
         , soShipStreet :: T.Text
+        , soShipCity :: T.Text
         , soShipCountry :: T.Text
         -- For shipping line
         , soDate :: T.Text
@@ -116,6 +119,7 @@ parseShopifyOrders contents = case decodeByName contents of
                                , soShipRegion   = slShipRegion first
                                , soShipZip      = slShipZip first
                                , soShipStreet   = slStreet first
+                               , soShipCity     = slCity first
                                , soShipCountry  = slCountry first
                                , soDate         = slDate first
                                , soCustomerId   = slCustomerId first
@@ -146,6 +150,7 @@ data AvaTaxLine =
         , origRegion :: T.Text
         , origPostCode :: T.Text
         , destAddress :: T.Text
+        , destCity :: T.Text
         , destRegion :: T.Text
         , destPostCode :: T.Text
         , destCountry :: T.Text
@@ -174,6 +179,7 @@ toAvalaraLine (ShopifyOrder {..}, sLines) = shippingLine : imap convert sLines
                               , origRegion               = "VA"
                               , origPostCode             = "23117"
                               , destAddress              = soShipStreet
+                              , destCity                 = soShipCity
                               , destRegion               = soShipRegion
                               , destPostCode             = soShipZip
                               , destCountry              = soShipCountry
@@ -197,6 +203,7 @@ toAvalaraLine (ShopifyOrder {..}, sLines) = shippingLine : imap convert sLines
         , origRegion               = "VA"
         , origPostCode             = "23117"
         , destAddress              = soShipStreet
+        , destCity                 = soShipCity
         , destRegion               = soShipRegion
         , destPostCode             = soShipZip
         , destCountry              = soShipCountry
