@@ -111,7 +111,8 @@ parseShopifyOrders contents = case decodeByName contents of
             || (slShippingCost first == (-9001))
         then
             Left
-                "Got blank id, region, zip, street, country, shipping cost in first line of order."
+            $ "Got blank id, region, zip, street, country, shipping cost in first line of order: "
+            <> show first
         else
             Right
                 ( ShopifyOrder { soId           = slId first
